@@ -76,7 +76,6 @@ pub fn solve_file(filename: []const u8) !void {
     const end = @min(data.arr[0].len, data.arr[1].len);
     var distance: i64 = 0;
     for (0..end) |i| {
-        // try cout.print("CMP {d} {d}\n", .{ data.arr[0][i], data.arr[1][i] });
         const diff: i64 = data.arr[0][i] - data.arr[1][i];
         if (diff > 0) {
             distance += diff;
@@ -85,7 +84,21 @@ pub fn solve_file(filename: []const u8) !void {
         }
     }
 
-    try cout.print("Solution: {d}\n", .{distance});
+    try cout.print("Solution Part 1: {d}\n", .{distance});
+
+    var sim_score: i64 = 0;
+    for (0..end) |i| {
+        const num: i64 = data.arr[0][i];
+        var factor: i64 = 0;
+        for (0..end) |j| {
+            if (num == data.arr[1][j]) {
+                factor += 1;
+            }
+        }
+        sim_score += num * factor;
+    }
+
+    try cout.print("Solution Part 2: {d}\n", .{sim_score});
 }
 
 pub fn main() anyerror!void {

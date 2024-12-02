@@ -18,18 +18,11 @@ fn to_string(state: State) []const u8 {
     };
 }
 
-pub fn test_line(line: []const u8) !bool {
+pub fn test_numbers(nums: []const i64) bool {
     var state: State = State.First;
     var last_num: i64 = 0;
-    var splits = std.mem.split(u8, line, " ");
-    while (splits.next()) |num_str| {
-        if (num_str.len <= 0) {
-            continue;
-        }
-
-        const num = try std.fmt.parseInt(i64, num_str, 10);
+    for (nums) |num| {
         const diff = @abs(num - last_num);
-
         if (state == State.First) {
             state = State.NoDir;
         } else if (state == State.NoDir) {
@@ -58,7 +51,58 @@ pub fn test_line(line: []const u8) !bool {
     return true;
 }
 
-pub fn read_input(filename: []const u8) !usize {
+pub fn test_line_part1(line: []const u8) !bool {
+    var nums = std.mem.zeroes([1024]i64);
+    var pos: usize = 0;
+    var splits = std.mem.split(u8, line, " ");
+    while (splits.next()) |num_str| {
+        if (num_str.len <= 0) {
+            continue;
+        }
+
+        nums[pos] = try std.fmt.parseInt(i64, num_str, 10);
+        pos += 1;
+    }
+    return test_numbers(nums[0..pos]);
+}
+
+pub fn test_line_part2(line: []const u8) !bool {
+    var nums_buffer = std.mem.zeroes([1024]i64);
+    var pos: usize = 0;
+    var splits = std.mem.split(u8, line, " ");
+    while (splits.next()) |num_str| {
+        if (num_str.len <= 0) {
+            continue;
+        }
+
+        nums_buffer[pos] = try std.fmt.parseInt(i64, num_str, 10);
+        pos += 1;
+    }
+    const nums = nums_buffer[0..pos];
+    if (test_numbers(nums)) {
+        return true;
+    }
+
+    var nums_buffer2 = std.mem.zeroes([1024]i64);
+    for (0..nums.len) |i| {
+        for (0..nums.len - 1) |j| {
+            var src = j;
+            if (j >= i) {
+                src += 1;
+            }
+            nums_buffer2[j] = nums[src];
+        }
+        if (test_numbers(nums_buffer2[0 .. nums.len - 1])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const Part = enum { P1, P2 };
+
+pub fn read_input(filename: []const u8, part: Part) !usize {
     const file = try std.fs.cwd().openFile(filename, .{});
     defer file.close();
 
@@ -75,22 +119,34 @@ pub fn read_input(filename: []const u8) !usize {
     }
     var count: usize = 0;
     var splits = std.mem.split(u8, buffer, "\n");
-    while (splits.next()) |line| {
-        const tmp = right_trim(line[0..]);
-        if (tmp.len > 0 and try test_line(tmp)) {
-            count += 1;
+
+    if (part == Part.P1) {
+        while (splits.next()) |line| {
+            const tmp = right_trim(line[0..]);
+            if (tmp.len > 0 and try test_line_part1(tmp)) {
+                count += 1;
+            }
+        }
+    } else { // part == Part.p2
+        while (splits.next()) |line| {
+            const tmp = right_trim(line[0..]);
+            if (tmp.len > 0 and try test_line_part2(tmp)) {
+                count += 1;
+            }
         }
     }
     return count;
 }
 
 pub fn solve_file(filename: []const u8) !void {
-    const count = try read_input(filename);
+    const p1 = try read_input(filename, Part.P1);
+    const p2 = try read_input(filename, Part.P2);
+
     const cout = std.io.getStdOut().writer();
-    try cout.print("Input: \"{s}\" Count:{d}\n", .{ filename, count });
+    try cout.print("Input: \"{s}\" Part 1:{d} | Part 2:{d}\n", .{ filename, p1, p2 });
 }
 
 pub fn main() anyerror!void {
     try solve_file("part1.example.txt");
-    try solve_file("part1.test.txt"); // 640 too high
+    try solve_file("part1.test.txt"); // 661 too low
 }

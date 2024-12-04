@@ -75,7 +75,7 @@ fn parse_content(text: []const u8, allocator: *const std.mem.Allocator) !DataSet
 
 const text_XMAS = "XMAS";
 
-fn count_xmas(data: *const DataSet) usize {
+fn count_xmas_part1(data: *const DataSet) usize {
     const rows = data.rows;
     const cols = data.cols;
     var res: usize = 0;
@@ -125,6 +125,72 @@ fn count_xmas(data: *const DataSet) usize {
     return res;
 }
 
+// x is expected to be over 1
+// rotation is expected to be 0..8
+fn get_d_x(x: usize, rotation: usize) usize {
+    const r = rotation % 4;
+    if (r < 2) {
+        return x + 1;
+    } else {
+        return x - 1;
+    }
+}
+
+// x is expected to be over 1
+// rotation is expected to be 0..8
+fn get_d_y(y: usize, rotation: usize) usize {
+    const r = rotation % 4;
+    if (r == 1 or r == 2) {
+        return y + 1;
+    } else {
+        return y - 1;
+    }
+}
+
+const text_MAS = "MAS";
+
+fn count_xmas_part2(data: *const DataSet) usize {
+    const rows = data.rows;
+    const cols = data.cols;
+    var res: usize = 0;
+
+    for (1..rows - 1) |r| {
+        for (1..cols - 1) |c| {
+            var r2 = r;
+            var c2 = c;
+            if (data.data[r2 * cols + c2] != text_MAS[1]) {
+                continue;
+            }
+            for (0..4) |dir| {
+                r2 = get_d_y(r, dir);
+                c2 = get_d_x(c, dir);
+                if (data.data[r2 * cols + c2] != text_MAS[0]) {
+                    continue;
+                }
+                r2 = get_d_y(r, dir + 1);
+                c2 = get_d_x(c, dir + 1);
+                if (data.data[r2 * cols + c2] != text_MAS[0]) {
+                    continue;
+                }
+                r2 = get_d_y(r, dir + 2);
+                c2 = get_d_x(c, dir + 2);
+                if (data.data[r2 * cols + c2] != text_MAS[2]) {
+                    continue;
+                }
+                r2 = get_d_y(r, dir + 3);
+                c2 = get_d_x(c, dir + 3);
+                if (data.data[r2 * cols + c2] != text_MAS[2]) {
+                    continue;
+                }
+
+                res += 1;
+            }
+        }
+    }
+
+    return res;
+}
+
 fn process_input(filename: []const u8) anyerror!void {
     var gp = std.heap.GeneralPurposeAllocator(.{ .safety = true }){};
     defer _ = gp.deinit();
@@ -147,13 +213,14 @@ fn process_input(filename: []const u8) anyerror!void {
         }
     }
 
-    const result = count_xmas(&data);
+    const p1 = count_xmas_part1(&data);
+    const p2 = count_xmas_part2(&data);
 
     // const cout = std.io.getStdOut().writer();
-    try cout.print("File {s} counts {d} XMAS\n", .{ filename, result });
+    try cout.print("File {s} counts {d} XMAS and {d} X-MAS\n", .{ filename, p1, p2 });
 }
 
 pub fn main() anyerror!void {
-    try process_input("part1.example.txt"); // 18
-    try process_input("part1.test.txt"); // 2462
+    try process_input("part1.example.txt"); // p1: 18 / p2: 9
+    try process_input("part1.test.txt"); // p1: 2462 / p2: 1877
 }

@@ -150,22 +150,44 @@ fn is_page_ok(page: PageSet, rules: []const Rule) bool {
     return true;
 }
 
-fn find_correctly_ordered_page_sets(data: *const DataSet) !usize {
-    var res: usize = 0;
-    const cout = std.io.getStdOut().writer();
+fn fix_page(page: PageSet, rules: []const Rule) void {
+    var changed: bool = true;
+    while (changed) {
+        changed = false;
+        for (0..page.len - 1) |s| {
+            for (s..page.len) |e| {
+                if (is_against_rules(page[s], page[e], rules) and
+                    !is_against_rules(page[e], page[s], rules))
+                {
+                    const val = page[s];
+                    page[s] = page[e];
+                    page[e] = val;
+
+                    changed = true;
+                }
+            }
+        }
+    }
+}
+
+fn find_solution_parts(data: *const DataSet) ![2]usize {
+    var res: [2]usize = .{ 0, 0 };
     for (data.page_sets) |page_set| {
         if (is_page_ok(page_set, data.rules)) {
-            try cout.print("\tpages: ", .{});
             const highlight_cell = page_set.len / 2;
             for (0..page_set.len) |n| {
                 if (highlight_cell == n) {
-                    try cout.print(" [{d}]", .{page_set[n]});
-                    res += page_set[n];
-                } else {
-                    try cout.print(" {d}", .{page_set[n]});
+                    res[0] += page_set[n];
                 }
             }
-            try cout.print("\n", .{});
+        } else {
+            fix_page(page_set, data.rules);
+            const highlight_cell = page_set.len / 2;
+            for (0..page_set.len) |n| {
+                if (highlight_cell == n) {
+                    res[1] += page_set[n];
+                }
+            }
         }
     }
     return res;
@@ -183,8 +205,8 @@ fn solve(filename: []const u8) !void {
     defer free_dataset(&dataSet, &allocator);
 
     const cout = std.io.getStdOut().writer();
-    const result = try find_correctly_ordered_page_sets(&dataSet);
-    try cout.print("File: \"{s}\" Result: {d}", .{ filename, result });
+    const result = try find_solution_parts(&dataSet);
+    try cout.print("File: \"{s}\" Result: {d}\n", .{ filename, result });
 
     if (false) {
         for (dataSet.rules) |r| {

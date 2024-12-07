@@ -78,6 +78,14 @@ fn parse(content: []const u8, allocator: *const std.mem.Allocator) anyerror!Fiel
 }
 
 const Dir = enum { Up, Down, Left, Right };
+fn dir_to_int(dir: Dir) u8 {
+    return switch (dir) {
+        Dir.Up => 1,
+        Dir.Down => 2,
+        Dir.Left => 4,
+        Dir.Right => 8,
+    };
+}
 
 const State = struct {
     pos: Pos,
@@ -127,7 +135,7 @@ fn play_turn(field: *const Field, state: *State) void {
     }
 }
 
-fn find_solution(field: *Field) usize {
+fn find_solution_part1(field: *Field) usize {
     var state = State{ .pos = field.start, .dir = Dir.Up };
 
     field.data[state.pos[1] * field.size[0] + state.pos[0]] = 'X';
@@ -145,6 +153,51 @@ fn find_solution(field: *Field) usize {
     return result;
 }
 
+fn does_it_loop(field: *Field) bool {
+    var state = State{ .pos = field.start, .dir = Dir.Up };
+    field.data[state.pos[1] * field.size[0] + state.pos[0]] |= dir_to_int(state.dir);
+
+    while (!field_finished(field, &state)) {
+        play_turn(field, &state);
+
+        const n = dir_to_int(state.dir);
+        const arr_pos = state.pos[1] * field.size[0] + state.pos[0];
+        if (field.data[arr_pos] & n > 0) {
+            return true;
+        }
+        field.data[arr_pos] |= n;
+    }
+    return false;
+}
+
+fn find_solution_part2(field: *const Field, tmp_field: *Field) usize {
+    var result: usize = 0;
+    for (0..field.data.len) |pos| {
+        if (field.data[pos] != 'X') {
+            continue;
+        }
+        const x: usize = pos % field.size[0];
+        const y: usize = pos / field.size[0];
+        if (field.start[0] == x and field.start[1] == y) {
+            continue;
+        }
+
+        // fill temp
+        for (0..field.data.len) |i| {
+            if (field.data[i] == '#') {
+                tmp_field.data[i] = '#';
+            } else {
+                tmp_field.data[i] = 0;
+            }
+        }
+        tmp_field.data[pos] = '#';
+        if (does_it_loop(tmp_field)) {
+            result += 1;
+        }
+    }
+    return result;
+}
+
 fn solve(filename: []const u8) !void {
     var gp = std.heap.GeneralPurposeAllocator(.{ .safety = true }){};
     defer _ = gp.deinit();
@@ -156,12 +209,20 @@ fn solve(filename: []const u8) !void {
     var field = try parse(content, &allocator);
     defer free_dataset(&field, &allocator);
 
-    const result = find_solution(&field);
+    var tmp_field = Field{
+        .size = field.size,
+        .start = field.start,
+        .data = try allocator.alloc(u8, field.data.len),
+    };
+    defer free_dataset(&tmp_field, &allocator);
+
+    const result1 = find_solution_part1(&field);
+    const result2 = find_solution_part2(&field, &tmp_field);
     const cout = std.io.getStdOut().writer();
-    try cout.print("File: \"{s}\" Result: {d}\n", .{ filename, result });
+    try cout.print("File: \"{s}\" Result: {d} | {d}\n", .{ filename, result1, result2 });
 }
 
 pub fn main() anyerror!void {
-    try solve("part1.example.txt");
-    try solve("part1.test.txt");
+    try solve("part1.example.txt"); // p1: 41 | p2: 6
+    try solve("part1.test.txt"); // p2: 4647 | p2: ???
 }

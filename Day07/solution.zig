@@ -90,22 +90,58 @@ fn parse_file_content(content: []const u8, alloc: *const std.mem.Allocator) !Tas
 }
 
 // Try to solve the eqation, return "it has a solution"
-fn solve_recursive(target: usize, base: usize, vals: []usize) bool {
+fn solve_recursive_par1(target: usize, base: usize, vals: []usize) bool {
     if (base > target) {
         return false;
     } else if (vals.len == 0) {
         return base == target;
     } else {
         const slice = vals[1..];
-        return solve_recursive(target, base + vals[0], slice) or
-            solve_recursive(target, base * vals[0], slice);
+        return solve_recursive_par1(target, base + vals[0], slice) or
+            solve_recursive_par1(target, base * vals[0], slice);
     }
 }
 
 fn find_solution_part1(task: *const Task) usize {
     var res: usize = 0;
     for (task.equations) |eq| {
-        if (solve_recursive(eq.solution, 0, eq.values)) {
+        if (solve_recursive_par1(eq.solution, 0, eq.values)) {
+            res += eq.solution;
+        }
+    }
+    return res;
+}
+
+// Try to solve the eqation, return "it has a solution"
+fn solve_recursive_par2(target: usize, base: usize, vals: []usize) bool {
+    if (base > target) {
+        return false;
+    } else if (vals.len == 0) {
+        return base == target;
+    } else {
+        const slice = vals[1..];
+        if (solve_recursive_par2(target, base + vals[0], slice)) {
+            return true;
+        } else if (solve_recursive_par2(target, base * vals[0], slice)) {
+            return true;
+        } else {
+            // the new "||" operator
+            const l: f64 = @floatFromInt(vals[0]);
+            const l2: usize = @intFromFloat(@log10(l));
+            var raise: usize = 1;
+            for (0..l2 + 1) |_| {
+                raise *= 10;
+            }
+            const new_base = base * raise + vals[0];
+            return solve_recursive_par2(target, new_base, slice);
+        }
+    }
+}
+
+fn find_solution_part2(task: *const Task) usize {
+    var res: usize = 0;
+    for (task.equations) |eq| {
+        if (solve_recursive_par2(eq.solution, 0, eq.values)) {
             res += eq.solution;
         }
     }
@@ -124,11 +160,17 @@ fn solve(filename: []const u8) !void {
     defer free_task(&task, &alloc);
 
     const result1 = find_solution_part1(&task);
+    const result2 = find_solution_part2(&task);
     const cout = std.io.getStdOut().writer();
-    try cout.print("File: \"{s}\" Result: {d}\n", .{ filename, result1 });
+    try cout.print("File: \"{s}\" Result: {d} | {d}\n", .{ filename, result1, result2 });
 }
 
 pub fn main() anyerror!void {
-    try solve("part1.example.txt"); // p1: 3749
+    // p1: 3749
+    // p2: 11378
+    try solve("part1.example.txt");
+
+    // p1: 1611660863222
+    // p2: 945341732469724
     try solve("part1.test.txt");
 }

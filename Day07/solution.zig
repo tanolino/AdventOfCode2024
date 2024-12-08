@@ -90,7 +90,7 @@ fn parse_file_content(content: []const u8, alloc: *const std.mem.Allocator) !Tas
 }
 
 // Try to solve the eqation, return "it has a solution"
-fn solve_recursive_par1(target: usize, base: usize, vals: []usize) bool {
+fn solve_recursive_par1(target: usize, base: usize, vals: []const usize) bool {
     if (base > target) {
         return false;
     } else if (vals.len == 0) {
@@ -102,18 +102,8 @@ fn solve_recursive_par1(target: usize, base: usize, vals: []usize) bool {
     }
 }
 
-fn find_solution_part1(task: *const Task) usize {
-    var res: usize = 0;
-    for (task.equations) |eq| {
-        if (solve_recursive_par1(eq.solution, 0, eq.values)) {
-            res += eq.solution;
-        }
-    }
-    return res;
-}
-
 // Try to solve the eqation, return "it has a solution"
-fn solve_recursive_par2(target: usize, base: usize, vals: []usize) bool {
+fn solve_recursive_par2(target: usize, base: usize, vals: []const usize) bool {
     if (base > target) {
         return false;
     } else if (vals.len == 0) {
@@ -126,6 +116,40 @@ fn solve_recursive_par2(target: usize, base: usize, vals: []usize) bool {
             return true;
         } else {
             // the new "||" operator
+            var raise: usize = 1;
+            var l: usize = vals[0];
+            while (l >= 10) {
+                raise *= 10;
+                l /= 10;
+            }
+            raise *= 10;
+            const new_base = base * raise + vals[0];
+            return solve_recursive_par2(target, new_base, slice);
+        }
+    }
+}
+
+// Increased Complexity slows down by 40 to 50%
+const Solved = enum { None, onlyP1, needP2 };
+fn solve_recursive(target: usize, base: usize, vals: []const usize) Solved {
+    if (base > target) {
+        return Solved.None;
+    } else if (vals.len == 0) {
+        if (base == target) {
+            return Solved.onlyP1;
+        } else {
+            return Solved.None;
+        }
+    } else {
+        const slice = vals[1..];
+        const solution1 = solve_recursive(target, base + vals[0], slice);
+        const solution2 = solve_recursive(target, base * vals[0], slice);
+        if (solution1 == Solved.onlyP1 or solution2 == Solved.onlyP1) {
+            return Solved.onlyP1;
+        } else if (solution1 == Solved.needP2 or solution2 == Solved.needP2) {
+            return Solved.needP2;
+        } else {
+            // the new "||" operator
             const l: f64 = @floatFromInt(vals[0]);
             const l2: usize = @intFromFloat(@log10(l));
             var raise: usize = 1;
@@ -133,16 +157,23 @@ fn solve_recursive_par2(target: usize, base: usize, vals: []usize) bool {
                 raise *= 10;
             }
             const new_base = base * raise + vals[0];
-            return solve_recursive_par2(target, new_base, slice);
+            if (solve_recursive(target, new_base, slice) != Solved.None) {
+                return Solved.needP2;
+            } else {
+                return Solved.None;
+            }
         }
     }
 }
 
-fn find_solution_part2(task: *const Task) usize {
-    var res: usize = 0;
+fn find_solution(task: *const Task) [2]usize {
+    var res: [2]usize = .{ 0, 0 };
     for (task.equations) |eq| {
-        if (solve_recursive_par2(eq.solution, 0, eq.values)) {
-            res += eq.solution;
+        if (solve_recursive_par1(eq.solution, 0, eq.values)) {
+            res[0] += eq.solution;
+            res[1] += eq.solution;
+        } else if (solve_recursive_par2(eq.solution, 0, eq.values)) {
+            res[1] += eq.solution;
         }
     }
     return res;
@@ -159,16 +190,15 @@ fn solve(filename: []const u8) !void {
     const task = try parse_file_content(content, &alloc);
     defer free_task(&task, &alloc);
 
-    const result1 = find_solution_part1(&task);
-    const result2 = find_solution_part2(&task);
+    const result = find_solution(&task);
     const cout = std.io.getStdOut().writer();
-    try cout.print("File: \"{s}\" Result: {d} | {d}\n", .{ filename, result1, result2 });
+    try cout.print("File: \"{s}\" Result: {d} | {d}\n", .{ filename, result[0], result[1] });
 }
 
 pub fn main() anyerror!void {
     // p1: 3749
-    // p2: 11378
-    try solve("part1.example.txt");
+    // p2: 11387
+    // try solve("part1.example.txt");
 
     // p1: 1611660863222
     // p2: 945341732469724

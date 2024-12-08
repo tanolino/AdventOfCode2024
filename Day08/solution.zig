@@ -102,7 +102,14 @@ fn parse_file_content(content: []const u8, alloc: *const std.mem.Allocator) !Fie
     return task;
 }
 
-fn find_solution(field: *const Field) usize {
+fn find_solution(field: *const Field, consider_resonance: bool) usize {
+    if (consider_resonance) {
+        for (field.antennas) |ant| {
+            if (consider_resonance) {
+                field.data[ant.x + ant.y * field.width] = '#';
+            }
+        }
+    }
     for (0..field.antennas.len - 1) |pos1| {
         for (pos1 + 1..field.antennas.len) |pos2| {
             if (field.antennas[pos1].c != field.antennas[pos2].c) {
@@ -114,16 +121,32 @@ fn find_solution(field: *const Field) usize {
             const x2 = field.antennas[pos2].x;
             const y2 = field.antennas[pos2].y;
 
-            const xe1 = @subWithOverflow(x1 + x1, x2);
-            const ye1 = @subWithOverflow(y1 + y1, y2);
-            if (xe1[1] == 0 and ye1[1] == 0 and xe1[0] < field.width and ye1[0] < field.height) {
-                field.data[xe1[0] + field.width * ye1[0]] = '#';
+            var i: usize = 1;
+            var xe = @subWithOverflow(x1 + x1, x2);
+            var ye = @subWithOverflow(y1 + y1, y2);
+            while (xe[1] == 0 and ye[1] == 0 and xe[0] < field.width and ye[0] < field.height) {
+                field.data[xe[0] + field.width * ye[0]] = '#';
+
+                if (!consider_resonance) {
+                    break;
+                }
+                i += 1;
+                xe = @subWithOverflow(x1 * (1 + i), x2 * i);
+                ye = @subWithOverflow(y1 * (1 + i), y2 * i);
             }
 
-            const xe2 = @subWithOverflow(x2 + x2, x1);
-            const ye2 = @subWithOverflow(y2 + y2, y1);
-            if (xe2[1] == 0 and ye2[1] == 0 and xe2[0] < field.width and ye2[0] < field.height) {
-                field.data[xe2[0] + field.width * ye2[0]] = '#';
+            i = 1;
+            xe = @subWithOverflow(x2 + x2, x1);
+            ye = @subWithOverflow(y2 + y2, y1);
+            while (xe[1] == 0 and ye[1] == 0 and xe[0] < field.width and ye[0] < field.height) {
+                field.data[xe[0] + field.width * ye[0]] = '#';
+
+                if (!consider_resonance) {
+                    break;
+                }
+                i += 1;
+                xe = @subWithOverflow(x2 * (1 + i), x1 * i);
+                ye = @subWithOverflow(y2 * (1 + i), y1 * i);
             }
         }
     }
@@ -147,7 +170,8 @@ fn solve(filename: []const u8) !void {
 
     const field = try parse_file_content(content, &alloc);
     defer free_field(&field, &alloc);
-    const result = find_solution(&field);
+    const result = find_solution(&field, false);
+    const result2 = find_solution(&field, true);
 
     const cout = std.io.getStdOut().writer();
     const print_field = false;
@@ -166,15 +190,15 @@ fn solve(filename: []const u8) !void {
         }
         try cout.print("\n", .{});
     }
-    try cout.print("File: \"{s}\" Result: {d}\n", .{ filename, result });
+    try cout.print("File: \"{s}\" Result: {d} | {d}\n", .{ filename, result, result2 });
 }
 
 pub fn main() anyerror!void {
     // p1: 14
-    // p2:
-    try solve("part1.example.txt");
+    // p2: 34
+    // try solve("part1.example.txt");
 
     // p1: 305
-    // p2:
+    // p2: 1150
     try solve("part1.test.txt");
 }

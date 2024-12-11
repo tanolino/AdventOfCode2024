@@ -33,21 +33,28 @@ fn solve(filename: []const u8, count: usize) !void {
     const field = try create_field(content, &alloc);
     defer alloc.free(field);
 
-    const result = resolve(field, count);
+    var lookup = try alloc.alloc(std.AutoHashMap(usize, usize), count);
+    for (0..lookup.len) |i| {
+        lookup[i] = std.AutoHashMap(usize, usize).init(alloc);
+    }
+    defer {
+        for (0..lookup.len) |i| {
+            lookup[i].deinit();
+        }
+        alloc.free(lookup);
+    }
+
+    const result = try resolve(field, count, lookup);
 
     const cout = std.io.getStdOut().writer();
     try cout.print("File: \"{s}\" Count: {d} Result: {d}\n", .{ filename, count, result });
 }
 
 pub fn main() anyerror!void {
-    // p1: 55312
-    // p2:
-    try solve("part1.example.txt", 6);
-    try solve("part1.example.txt", 25);
-
-    // p1: 209412
-    // p2:
-    try solve("part1.test.txt", 25);
+    //try solve("part1.example.txt", 6); // 22
+    //try solve("part1.example.txt", 25); // 55312
+    try solve("part1.test.txt", 25); // 209412
+    try solve("part1.test.txt", 75); // 248967696501656
 }
 
 fn create_field(content: []const u8, alloc: *const std.mem.Allocator) ![]usize {
@@ -74,26 +81,35 @@ fn create_field(content: []const u8, alloc: *const std.mem.Allocator) ![]usize {
     return res;
 }
 
-fn resolve(field: []const usize, depth: usize) usize {
+fn resolve(field: []const usize, depth: usize, lookup: []std.AutoHashMap(usize, usize)) !usize {
     var res: usize = 0;
     for (0..field.len) |num| {
-        res += recursive_resolve(field[num], depth);
+        res += try recursive_resolve(field[num], depth, lookup);
     }
     return res;
 }
 
-fn recursive_resolve(num: usize, depth: usize) usize {
+fn recursive_resolve(num: usize, depth: usize, lookup: []std.AutoHashMap(usize, usize)) !usize {
     if (depth <= 0) { // We have no more hoops
         return 1;
     } else if (num == 0) { // first rule
-        return recursive_resolve(1, depth - 1);
+        return recursive_resolve(1, depth - 1, lookup);
     } else {
-        const digits = count_digits(num);
-        if (digits % 2 == 0) {
-            const split = split_digit_at(num, digits / 2);
-            return recursive_resolve(split[0], depth - 1) + recursive_resolve(split[1], depth - 1);
+        const cache = lookup[depth - 1].get(num);
+        if (cache == null) {
+            const digits = count_digits(num);
+            var res: usize = undefined;
+            if (digits % 2 == 0) {
+                const split = split_digit_at(num, digits / 2);
+                res = try recursive_resolve(split[0], depth - 1, lookup);
+                res += try recursive_resolve(split[1], depth - 1, lookup);
+            } else {
+                res = try recursive_resolve(2024 * num, depth - 1, lookup);
+            }
+            try lookup[depth - 1].put(num, res);
+            return res;
         } else {
-            return recursive_resolve(2024 * num, depth - 1);
+            return cache.?;
         }
     }
 }

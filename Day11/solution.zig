@@ -23,9 +23,12 @@ fn read_all_file(filename: []const u8, alloc: *const std.mem.Allocator) anyerror
 }
 
 fn solve(filename: []const u8, count: usize) !void {
-    var gp = std.heap.GeneralPurposeAllocator(.{ .safety = true }){};
-    defer _ = gp.deinit();
-    const alloc = gp.allocator();
+    //var gp = std.heap.GeneralPurposeAllocator(.{ .safety = true }){};
+    //defer _ = gp.deinit();
+    //const alloc = gp.allocator();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
 
     const content = try read_all_file(filename, &alloc);
     defer alloc.free(content);

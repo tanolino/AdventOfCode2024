@@ -37,17 +37,19 @@ fn solve(filename: []const u8) !void {
     defer alloc.free(field.data);
 
     // try print_field(&field);
-    const result = resolve(&field);
+    const result = try resolve(&field, &alloc);
 
     const cout = std.io.getStdOut().writer();
     try cout.print("File: \"{s}\" Result: {d}\n", .{ filename, result });
 }
 
 pub fn main() anyerror!void {
-    try solve("part1.example.140.txt"); // 140 / 80
-    // try solve("part1.example.772.txt"); // 772 / 436
-    // try solve("part1.example.1930.txt"); // 1930 / 368
-    // try solve("part1.test.txt"); // 1546338
+    //try solve("part1.example.140.txt"); // 140 / 80
+    //try solve("part1.example.772.txt"); // 772 / 436
+    // try solve("part2.example.236.txt"); // --- / 236
+    // try solve("part2.example.368.txt"); // --- / 368
+    // try solve("part1.example.1930.txt"); // 1930 / 1206
+    try solve("part1.test.txt"); // 1546338 / 978590
 }
 
 fn print_field(field: *const Field) !void {
@@ -115,18 +117,212 @@ const Field = struct {
     data: []u8,
 };
 
-fn resolve(field: *const Field) usize {
-    var res: usize = 0;
+fn resolve(field: *const Field, alloc: *const std.mem.Allocator) ![2]usize {
+    var res: [2]usize = .{ 0, 0 };
+    var buffer: []usize = try alloc.alloc(usize, 1000);
+    defer alloc.free(buffer);
+    for (0..1000) |i| {
+        buffer[i] = 0;
+    }
+
     for (field.width + 1..field.data.len - field.width) |i| {
         if (field.data[i] != 0) {
             const r = flood(field, i);
+
+            if (r[1] >= buffer.len) {
+                alloc.free(buffer);
+                buffer = try alloc.alloc(usize, buffer.len * 2);
+            }
+
+            var p2: usize = 0;
+            var p2_h2: usize = 0;
+            {
+                part2_horiz_above(field, i, buffer);
+                var p2_h: usize = 0;
+                for (0..buffer.len) |j| {
+                    if (buffer[j] == 0) {
+                        break;
+                    } else {
+                        p2_h += 1;
+                    }
+                }
+                p2_h2 = count_continuous(buffer[0..p2_h]);
+                for (0..p2_h) |j| {
+                    buffer[j] = 0;
+                }
+
+                part2_horiz_below(field, i, buffer);
+                p2_h = 0;
+                for (0..buffer.len) |j| {
+                    if (buffer[j] == 0) {
+                        break;
+                    } else {
+                        p2_h += 1;
+                    }
+                }
+                p2_h2 += count_continuous(buffer[0..p2_h]);
+                for (0..p2_h) |j| {
+                    buffer[j] = 0;
+                }
+            }
+            p2 += p2_h2;
+
+            var p2_v2: usize = 0;
+            {
+                part2_vert_right(field, i, buffer);
+                var p2_v: usize = 0;
+                for (0..buffer.len) |j| {
+                    if (buffer[j] == 0) {
+                        break;
+                    } else {
+                        p2_v += 1;
+                    }
+                }
+                p2_v2 += count_continuous(buffer[0..p2_v]);
+                for (0..p2_v) |j| {
+                    buffer[j] = 0;
+                }
+
+                part2_vert_left(field, i, buffer);
+                p2_v = 0;
+                for (0..buffer.len) |j| {
+                    if (buffer[j] == 0) {
+                        break;
+                    } else {
+                        p2_v += 1;
+                    }
+                }
+                p2_v2 += count_continuous(buffer[0..p2_v]);
+                for (0..p2_v) |j| {
+                    buffer[j] = 0;
+                }
+            }
+            p2 += p2_v2;
+
             clean(field, i);
             // const cout = std.io.getStdOut().writer();
-            // try cout.print("Status: Area {d} Perims {d} | {d}\n", .{ r[0], r[1], p2 });
-            res += r[0] * r[1];
+            // try cout.print("Status: Area {d} Perims {d} | {d} ({d} + {d})\n", .{ r[0], r[1], p2, p2_v2, p2_h2 });
+            res[0] += r[0] * r[1];
+            res[1] += r[0] * p2;
         }
     }
     return res;
+}
+
+fn count_continuous(buffer: []usize) usize {
+    if (buffer.len <= 1) {
+        return buffer.len;
+    }
+
+    std.mem.sort(usize, buffer, {}, comptime std.sort.asc(usize));
+
+    var res: usize = 1;
+    var last = buffer[0];
+    for (1..buffer.len) |i| {
+        if (buffer[i] - last > 1) {
+            res += 1;
+        }
+        last = buffer[i];
+    }
+    return res;
+}
+
+// Swap 1 -> 2
+fn part2_horiz_above(field: *const Field, index: usize, buffer: []usize) void {
+    if (field.data[index] != 1) {
+        return;
+    }
+
+    field.data[index] = 2;
+    const above = field.data[index - field.width];
+    if (above != 1 and above != 2) {
+        for (0..buffer.len) |i| {
+            if (buffer[i] == 0) {
+                buffer[i] = index;
+                break;
+            }
+        }
+    }
+
+    part2_horiz_above(field, index + 1, buffer);
+    part2_horiz_above(field, index - 1, buffer);
+    part2_horiz_above(field, index + field.width, buffer);
+    part2_horiz_above(field, index - field.width, buffer);
+}
+
+// Swap 2 -> 1
+fn part2_horiz_below(field: *const Field, index: usize, buffer: []usize) void {
+    if (field.data[index] != 2) {
+        return;
+    }
+
+    field.data[index] = 1;
+    const below = field.data[index + field.width];
+    if (below != 1 and below != 2) {
+        for (0..buffer.len) |i| {
+            if (buffer[i] == 0) {
+                buffer[i] = index;
+                break;
+            }
+        }
+    }
+
+    part2_horiz_below(field, index + 1, buffer);
+    part2_horiz_below(field, index - 1, buffer);
+    part2_horiz_below(field, index + field.width, buffer);
+    part2_horiz_below(field, index - field.width, buffer);
+}
+
+// Swap 1 -> 2
+fn part2_vert_right(field: *const Field, index: usize, buffer: []usize) void {
+    if (field.data[index] != 1) {
+        return;
+    }
+
+    field.data[index] = 2;
+    const right = field.data[index + 1];
+    if (right != 1 and right != 2) {
+        for (0..buffer.len) |i| {
+            if (buffer[i] == 0) {
+                // transpose x and y
+                const x = index % field.width;
+                const y = index / field.width;
+                buffer[i] = x * field.height + y;
+                break;
+            }
+        }
+    }
+
+    part2_vert_right(field, index + 1, buffer);
+    part2_vert_right(field, index - 1, buffer);
+    part2_vert_right(field, index + field.width, buffer);
+    part2_vert_right(field, index - field.width, buffer);
+}
+
+// Swap 2 -> 1
+fn part2_vert_left(field: *const Field, index: usize, buffer: []usize) void {
+    if (field.data[index] != 2) {
+        return;
+    }
+
+    field.data[index] = 1;
+    const left = field.data[index - 1];
+    if (left != 1 and left != 2) {
+        for (0..buffer.len) |i| {
+            if (buffer[i] == 0) {
+                // transpose x and y
+                const x = index % field.width;
+                const y = index / field.width;
+                buffer[i] = x * field.height + y;
+                break;
+            }
+        }
+    }
+
+    part2_vert_left(field, index + 1, buffer);
+    part2_vert_left(field, index - 1, buffer);
+    part2_vert_left(field, index + field.width, buffer);
+    part2_vert_left(field, index - field.width, buffer);
 }
 
 fn flood(field: *const Field, index: usize) [2]usize {
@@ -181,6 +377,7 @@ fn Dir_to_string(dir: Dir) []const u8 {
     };
 }
 
+// Swap 1 -> 0
 fn clean(field: *const Field, index: usize) void {
     if (field.data[index] == 1) {
         field.data[index] = 0;

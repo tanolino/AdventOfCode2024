@@ -43,8 +43,8 @@ fn solve(filename: []const u8, width: usize, height: usize) !void {
 }
 
 pub fn main() anyerror!void {
-    try solve("part1.example.11x7.txt", 11, 7);
-    //try solve("part1.test.101x103.txt", 101, 103);
+    // try solve("part1.example.11x7.txt", 11, 7); // 12
+    try solve("part1.test.101x103.txt", 101, 103); // 228410028
 }
 
 const Robot = struct {
@@ -78,9 +78,9 @@ fn read_robots(data: []const u8, alloc: *const std.mem.Allocator) ![]Robot {
 fn read_one_robot(line: []const u8, rob: *Robot) !void {
     var iter = std.mem.split(u8, line, " ");
     const pos = iter.next();
-    rob.pos = try read_number_pair(pos.?);
+    rob.pos = try read_number_pair(pos.?[2..]);
     const dir = iter.next();
-    rob.dir = try read_number_pair(dir.?);
+    rob.dir = try read_number_pair(dir.?[2..]);
 }
 
 fn read_number_pair(pair: []const u8) ![2]i64 {
@@ -91,5 +91,38 @@ fn read_number_pair(pair: []const u8) ![2]i64 {
 }
 
 fn resolve(robs: []const Robot, width: usize, height: usize) usize {
-    return robs.len + width + height;
+    const w: i64 = @intCast(width);
+    const h: i64 = @intCast(height);
+    const w_h = @divExact(w - 1, 2);
+    const h_h = @divExact(h - 1, 2);
+    var quad: [4]usize = .{ 0, 0, 0, 0 };
+
+    //const cout = std.io.getStdOut().writer();
+    for (0..robs.len) |i| {
+        const rob: *const Robot = &robs[i];
+        const factor = 100;
+        var end_x = rob.pos[0] + rob.dir[0] * factor;
+        var end_y = rob.pos[1] + rob.dir[1] * factor;
+        // while (end_x < 0) { end_x += w; }
+        end_x = @mod(end_x, w);
+
+        // while (end_y < 0) { end_y += h; }
+        end_y = @mod(end_y, h);
+
+        //try cout.print("{d} + 100 {d} = {d} | {d}\n", .{ rob.pos, rob.dir, end_x, end_y });
+
+        if (end_x == w_h or end_y == h_h) {
+            continue;
+        }
+        var quad_id: usize = 0;
+        if (end_x > w_h) {
+            quad_id += 1;
+        }
+        if (end_y > h_h) {
+            quad_id += 2;
+        }
+        quad[quad_id] += 1;
+    }
+    //try cout.print("\n", .{});
+    return quad[0] * quad[1] * quad[2] * quad[3];
 }

@@ -38,7 +38,9 @@ fn work_with_file(file: []const u8) !void {
 
     const data = try read_file(file, &alloc);
     const result = try solve(data, &alloc);
-    print("File: \"{s}\" Result: {d}\n", .{ file, result });
+
+    const cout = std.io.getStdOut().writer();
+    try cout.print("File: \"{s}\" Result: {d}\n", .{ file, result });
 }
 
 pub fn main() !void {

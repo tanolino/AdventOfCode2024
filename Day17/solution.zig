@@ -31,6 +31,14 @@ fn read_file(name: []const u8, alloc: std.mem.Allocator) ![]u8 {
     return buffer;
 }
 
+fn exp2(num: usize) usize {
+    var res: usize = 1;
+    for (0..num) |_| {
+        res *= 2;
+    }
+    return res;
+}
+
 fn work_with_file(file: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -38,15 +46,69 @@ fn work_with_file(file: []const u8) !void {
 
     const data = try read_file(file, alloc);
     var state = try build_pc(data, alloc);
-    try solve(&state);
+    var orig: State = undefined;
+    set_pc(&orig, &state);
+
+    solve(&state);
+    const cout = std.io.getStdOut().writer();
+    try cout.print("Part 1 Output: ", .{});
+    for (0..state.out_count) |i| {
+        if (i != 0) {
+            try cout.print(",", .{});
+        }
+        try cout.print("{d}", .{state.out[i]});
+    }
+    try cout.print("\n", .{});
+
+    // Part 2 is more hacky
+    // We get 1 more output every 2^(3x) numbers
+    // the first number changes almost every time,
+    // the second number changes almost every 2^3
+    // the third every 2^6
+    // ...
+    // So to even reach a number of height state.programm.len,
+    // we need 2^(3 * state.programm.len - 1)
+    var missmatch_pos: ?usize = state.programm.len;
+    var num: usize = 0;
+    var attempts: usize = 0;
+    while (missmatch_pos != null) {
+        set_pc(&state, &orig);
+        state.RegA = @intCast(num);
+        solve(&state);
+
+        missmatch_pos = null;
+        for (0..state.programm.len) |i| {
+            const j: usize = state.programm.len - (i + 1);
+            if (state.out_count < j or state.programm[j] != state.out[j]) {
+                missmatch_pos = j;
+                attempts += 1;
+                break;
+            }
+        }
+
+        if (missmatch_pos) |pos| {
+            num += change(pos);
+        }
+    }
+    //for (0..state.out_count) |k| {
+    //    try cout.print("{d}", .{state.out[k]});
+    //}
+    //try cout.print(" - RegA: {d} - Attempts: {d}\n", .{ num, attempts });
+    try cout.print("Part 2: {d} - Attempts: {d}\n", .{ num, attempts });
+}
+
+pub fn change(pos: usize) usize {
+    const number = exp2(3 * pos);
+    return number;
 }
 
 pub fn main() !void {
     // try work_with_file("part1.example.txt");
-    try work_with_file("part1.test.txt"); // 89460
+    // try work_with_file("part2.example.txt");
+    try work_with_file("part1.test.txt");
 }
 
-const NumType = u32;
+const NumType = u64;
 const CmdType = u3;
 const State = struct {
     RegA: NumType = 0,
@@ -55,10 +117,23 @@ const State = struct {
     CmdPtr: usize = 0,
     programm: []CmdType,
     firstOut: bool = true,
+    out: []NumType,
+    out_count: usize = 0,
 };
 
+fn set_pc(dst: *State, src: *const State) void {
+    dst.RegA = src.RegA;
+    dst.RegB = src.RegB;
+    dst.RegC = src.RegC;
+    dst.CmdPtr = src.CmdPtr;
+    dst.programm = src.programm;
+    dst.firstOut = src.firstOut;
+    dst.out = src.out;
+    dst.out_count = src.out_count;
+}
+
 fn build_pc(text: []const u8, alloc: Allocator) !State {
-    var state = State{ .programm = undefined };
+    var state = State{ .programm = undefined, .out = try alloc.alloc(NumType, 1000) };
     var iter = std.mem.split(u8, text, "\n");
     while (iter.next()) |line| {
         const l = trim(line);
@@ -129,8 +204,7 @@ fn print_pc(state: *const State) void {
     print("\n", .{});
 }
 
-fn solve(state: *State) !void {
-    //print_pc(state);
+fn solve(state: *State) void {
     while (state.CmdPtr + 1 < state.programm.len) {
         const cmd = state.programm[state.CmdPtr];
         state.CmdPtr += 1;
@@ -138,7 +212,6 @@ fn solve(state: *State) !void {
         state.CmdPtr += 1;
 
         execute_cmd(state, cmd, cmb_op);
-        //print_pc(state);
     }
 }
 
@@ -156,7 +229,8 @@ fn execute_cmd(state: *State, cmd: CmdType, cmb_op: CmdType) void {
             for (0..cmd_op_val) |_| {
                 denom *= 2;
             }
-            state.RegA = @divTrunc(state.RegA, denom);
+            // state.RegA = @divTrunc(state.RegA, denom);
+            state.RegA = @divFloor(state.RegA, denom);
         },
         1 => {
             state.RegB = state.RegB ^ cmd_op_val;
@@ -173,12 +247,9 @@ fn execute_cmd(state: *State, cmd: CmdType, cmb_op: CmdType) void {
             state.RegB = state.RegB ^ state.RegC;
         },
         5 => {
-            if (state.firstOut) {
-                state.firstOut = false;
-            } else {
-                print(",", .{});
-            }
-            print("{d}", .{@mod(cmd_op_val, 8)});
+            const new_out = @mod(cmd_op_val, 8);
+            state.out[state.out_count] = new_out;
+            state.out_count += 1;
         },
         6 => {
             var denom: NumType = 1;
